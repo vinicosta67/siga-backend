@@ -4,6 +4,9 @@
   "description": "",
   "type": "module",
   "main": "index.js",
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
@@ -21,8 +24,7 @@
   },
   "homepage": "https://github.com/vinicosta67/siga-backend#readme",
   "dependencies": {
-    "@prisma/adapter-pg": "^7.5.0",
-    "@prisma/client": "^7.5.0",
+    "@prisma/client": "^5.21.1",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
@@ -34,6 +36,6 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.14",
-    "prisma": "^7.4.2"
+    "prisma": "^5.21.1"
   }
 }
