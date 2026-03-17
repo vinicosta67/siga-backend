@@ -9,13 +9,18 @@ datasource db {
 }
 
 model User {
-  id          String       @id @default(uuid())
-  name        String
-  email       String       @unique
-  password    String
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  permissions Permission[] @relation("users_permissions")
+  id             String          @id @default(uuid())
+  name           String
+  email          String          @unique
+  password       String
+  pfType         PfType          @default(FISICA)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  pessoaFisica   PessoaFisica?
+  pessoaJuridica PessoaJuridica?
+
+  permissions    Permission[]    @relation("users_permissions")
 
   @@map("users")
 }
@@ -28,4 +33,69 @@ model Permission {
   users       User[]   @relation("users_permissions")
 
   @@map("permissions")
+}
+
+enum MaritalStatus {
+  SOLTEIRO
+  CASADO
+  DIVORCIADO
+  VIUVO
+  UNIAO_ESTAVEL
+}
+
+enum CompanySize {
+  MEI
+  ME
+  EPP
+  MEDIO
+  GRANDE
+}
+
+enum PfType {
+  FISICA
+  JURIDICA
+}
+
+model PessoaFisica {
+  id            String         @id @default(uuid())
+  cpf           String         @unique
+  rg            String?
+  birthDate     DateTime?      @db.Date
+  maritalStatus MaritalStatus?
+  motherName    String?
+  monthlyIncome Decimal?       @db.Decimal(10, 2)
+  occupation    String?
+  address       String?
+  neighborhood  String?
+  city          String
+  state         String         @db.Char(2)
+  zipCode       String
+
+  userId        String         @unique
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("pessoa_fisica")
+}
+
+model PessoaJuridica {
+  id             String       @id @default(uuid())
+  cnpj           String       @unique
+  companyName    String?
+  tradeName      String?
+  industry       String?      
+  companySize    CompanySize?
+  annualRevenue  Decimal?     @db.Decimal(15, 2)
+  foundedDate    DateTime?    @db.Date
+  machineryCount Int?
+  employeeCount  Int?
+  address        String?
+  neighborhood   String?
+  city           String
+  state          String       @db.Char(2)
+  zipCode        String
+
+  userId         String       @unique
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("pessoa_juridica")
 }
