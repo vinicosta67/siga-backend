@@ -5,6 +5,7 @@ import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import authRoutes from './src/routes/authRoutes.js';
 import permissionRoutes from './src/routes/permissionRoutes.js';
+import proposalRoutes from './src/routes/proposalRoutes.js';
 
 dotenv.config();
 
@@ -31,6 +32,7 @@ io.on("connection", (socket) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/permissions', permissionRoutes);
+app.use('/api/proposals', proposalRoutes);
 
 app.get('/', (req, res) => {
     res.json({ message: "Servidor SIGA-Backend Online e rodando!" });

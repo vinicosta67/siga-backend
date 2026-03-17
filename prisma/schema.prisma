@@ -21,6 +21,7 @@ model User {
   pessoaJuridica PessoaJuridica?
 
   permissions    Permission[]    @relation("users_permissions")
+  proposals      Proposal[]
 
   @@map("users")
 }
@@ -98,4 +99,71 @@ model PessoaJuridica {
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("pessoa_juridica")
+}
+
+model Proposal {
+  id              String      @id @default(uuid())
+  title           String      
+  type            String      
+  status          String      @default("PENDENTE") 
+  
+  // Detalhes do Projeto de Crédito
+  sector          String?
+  creditType      String?
+  requestedValue  Decimal     @db.Decimal(15, 2)
+  financedValue   Decimal?    @db.Decimal(15, 2)
+  term            Int         
+  gracePeriod     String?
+  purpose         String?     
+
+  // Detalhes Complementares da Empresa no momento da Proposta
+  companyName     String?
+  industry        String?
+  size            String?
+  machinery       String?
+  revenue         String?     // Storing as string to match frontend mock or keep it loose, or change to Decimal
+  email           String?
+  phone           String?
+  zip             String?
+  state           String?
+  city            String?
+  neighborhood    String?
+  address         String?
+  
+  userId          String
+  user            User        @relation(fields: [userId], references: [id])
+  documents       Document[]
+  guarantees      Guarantee[] 
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  @@map("proposals")
+}
+
+model Document {
+  id              String      @id @default(uuid())
+  type            String      
+  url             String      
+  originalName    String      
+  description     String?     
+  status          String      @default("AGUARDANDO_VALIDACAO") 
+  
+  proposalId      String
+  proposal        Proposal    @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  createdAt       DateTime    @default(now())
+  
+  @@map("documents")
+}
+
+model Guarantee {
+  id              String      @id @default(uuid())
+  type            String      
+  description     String
+  estimatedValue  Decimal?    @db.Decimal(15, 2)
+  
+  proposalId      String
+  proposal        Proposal    @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  
+  @@map("guarantees")
 }
