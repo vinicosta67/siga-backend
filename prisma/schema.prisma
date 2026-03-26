@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
   engineType = "library"
 }
 
@@ -9,19 +9,20 @@ datasource db {
 }
 
 model User {
-  id             String          @id @default(uuid())
-  name           String
-  email          String          @unique
-  password       String
-  pfType         PfType          @default(FISICA)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  pfType    PfType   @default(FISICA)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   pessoaFisica   PessoaFisica?
   pessoaJuridica PessoaJuridica?
 
-  permissions    Permission[]    @relation("users_permissions")
-  proposals      Proposal[]
+  permissions Permission[] @relation("users_permissions")
+  proposals   Proposal[]
+  visits      Visit[]
 
   @@map("users")
 }
@@ -72,8 +73,8 @@ model PessoaFisica {
   state         String         @db.Char(2)
   zipCode       String
 
-  userId        String         @unique
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("pessoa_fisica")
 }
@@ -83,7 +84,7 @@ model PessoaJuridica {
   cnpj           String       @unique
   companyName    String?
   tradeName      String?
-  industry       String?      
+  industry       String?
   companySize    CompanySize?
   annualRevenue  Decimal?     @db.Decimal(15, 2)
   foundedDate    DateTime?    @db.Date
@@ -95,75 +96,102 @@ model PessoaJuridica {
   state          String       @db.Char(2)
   zipCode        String
 
-  userId         String       @unique
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("pessoa_juridica")
 }
 
 model Proposal {
-  id              String      @id @default(uuid())
-  title           String      
-  type            String      
-  status          String      @default("PENDENTE") 
-  
+  id     String @id @default(uuid())
+  title  String
+  type   String
+  status String @default("PENDENTE")
+
   // Detalhes do Projeto de Crédito
-  sector          String?
-  creditType      String?
-  requestedValue  Decimal     @db.Decimal(15, 2)
-  financedValue   Decimal?    @db.Decimal(15, 2)
-  term            Int         
-  gracePeriod     String?
-  purpose         String?     
+  sector         String?
+  creditType     String?
+  requestedValue Decimal  @db.Decimal(15, 2)
+  financedValue  Decimal? @db.Decimal(15, 2)
+  term           Int
+  gracePeriod    String?
+  purpose        String?
 
   // Detalhes Complementares da Empresa no momento da Proposta
-  companyName     String?
-  industry        String?
-  size            String?
-  machinery       String?
-  revenue         String?     // Storing as string to match frontend mock or keep it loose, or change to Decimal
-  email           String?
-  phone           String?
-  zip             String?
-  state           String?
-  city            String?
-  neighborhood    String?
-  address         String?
-  
-  userId          String
-  user            User        @relation(fields: [userId], references: [id])
-  documents       Document[]
-  guarantees      Guarantee[] 
-  
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-  
+  companyName  String?
+  industry     String?
+  size         String?
+  machinery    String?
+  revenue      String? // Storing as string to match frontend mock or keep it loose, or change to Decimal
+  email        String?
+  phone        String?
+  zip          String?
+  state        String?
+  city         String?
+  neighborhood String?
+  address      String?
+
+  userId     String
+  user       User        @relation(fields: [userId], references: [id])
+  documents  Document[]
+  guarantees Guarantee[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@map("proposals")
 }
 
 model Document {
-  id              String      @id @default(uuid())
-  type            String      
-  url             String      
-  originalName    String      
-  description     String?     
-  status          String      @default("AGUARDANDO_VALIDACAO") 
-  
-  proposalId      String
-  proposal        Proposal    @relation(fields: [proposalId], references: [id], onDelete: Cascade)
-  createdAt       DateTime    @default(now())
-  
+  id           String  @id @default(uuid())
+  type         String
+  url          String
+  originalName String
+  description  String?
+  status       String  @default("AGUARDANDO_VALIDACAO")
+
+  proposalId String
+  proposal   Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
   @@map("documents")
 }
 
 model Guarantee {
-  id              String      @id @default(uuid())
-  type            String      
-  description     String
-  estimatedValue  Decimal?    @db.Decimal(15, 2)
-  
-  proposalId      String
-  proposal        Proposal    @relation(fields: [proposalId], references: [id], onDelete: Cascade)
-  
+  id             String   @id @default(uuid())
+  type           String
+  description    String
+  estimatedValue Decimal? @db.Decimal(15, 2)
+
+  proposalId String
+  proposal   Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
   @@map("guarantees")
+}
+
+model Visit {
+  id           String   @id @default(uuid())
+  clientName   String
+  scheduledAt  DateTime
+  address      String
+  status       String   @default("AGENDADA")
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  zip          String? // CEP
+  street       String? // Rua
+  number       String? // Número
+  neighborhood String? // Bairro
+  city         String? // Cidade
+  state        String? // Estado (UF)
+  complement   String? // Complemento
+
+  // Geolocation para o MAPA
+  latitude  Float?
+  longitude Float?
+
+  opportunities String[] // Novas oportunidades identificadas
+
+  @@map("visits")
 }
