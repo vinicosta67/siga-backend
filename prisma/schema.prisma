@@ -76,6 +76,14 @@ model PessoaFisica {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  rgIssuer      String?
+  nationality   String?
+  gender        String?
+  phone         String?
+  addressNumber String?
+  latitude      Float?
+  longitude     Float?
+
   @@map("pessoa_fisica")
 }
 
@@ -98,6 +106,21 @@ model PessoaJuridica {
 
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  stateRegistration String?
+  cpf           String?
+  rg            String?
+  rgIssuer      String?
+  birthDate     DateTime?    @db.Date
+  nationality   String?
+  gender        String?
+  phone         String?
+  addressNumber String?
+  latitude      Float?
+  longitude     Float?
+  mainPartnerName String?
+  fullName        String?
+
 
   @@map("pessoa_juridica")
 }
@@ -130,6 +153,12 @@ model Proposal {
   city         String?
   neighborhood String?
   address      String?
+
+  latitude     Float?
+  longitude    Float?
+  addressType  String?
+  boundingBox  Json?
+  addressInfo  Json?
 
   userId     String
   user       User        @relation(fields: [userId], references: [id])

@@ -11,6 +11,39 @@ const createProposalSchema = z.object({
     requestedValue: z.number().positive('O valor deve ser positivo.'),
     term: z.number().int().positive('O prazo deve ser positivo.'),
     purpose: z.string().optional(),
+    
+    // Outros dados do Projeto de Crédito
+    financedValue: z.number().positive().optional(),
+    gracePeriod: z.string().optional(),
+    sector: z.string().optional(),
+    creditType: z.string().optional(),
+
+    // Detalhes da Empresa
+    companyName: z.string().optional(),
+    industry: z.string().optional(),
+    size: z.string().optional(),
+    machinery: z.string().optional(),
+    revenue: z.string().optional(),
+    email: z.string().optional(),
+    phone: z.string().optional(),
+    zip: z.string().optional(),
+    state: z.string().optional(),
+    city: z.string().optional(),
+    neighborhood: z.string().optional(),
+
+    // Suporte ao formato nativo do Nominatim ou enviado pelo frontend
+    address: z.any().optional(), // Pode ser o objeto detalhado
+    addressInfo: z.any().optional(),
+    display_name: z.string().optional(),
+    lat: z.coerce.number().optional(),
+    lon: z.coerce.number().optional(),
+    latitude: z.coerce.number().optional(),
+    longitude: z.coerce.number().optional(),
+    addresstype: z.string().optional(),
+    addressType: z.string().optional(),
+    boundingbox: z.any().optional(),
+    boundingBox: z.any().optional(),
+
     guarantees: z.array(z.object({
         type: z.string(),
         description: z.string(),
@@ -21,7 +54,22 @@ const createProposalSchema = z.object({
 export const createProposal = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { title, type, requestedValue, term, purpose, guarantees } = createProposalSchema.parse(req.body);
+        const {
+            title, type, requestedValue, term, purpose, guarantees,
+            financedValue, gracePeriod, sector, creditType,
+            companyName, industry, size, machinery, revenue, email, phone, zip, state, city, neighborhood,
+            address, addressInfo, display_name,
+            lat, lon, latitude, longitude,
+            addresstype, addressType,
+            boundingbox, boundingBox
+        } = createProposalSchema.parse(req.body);
+
+        // Verifica se 'address' é um array ou object (no Nominatim é um object)
+        const isAddressObject = typeof address === 'object' && address !== null;
+
+        // Se 'address' for objeto, armazenamos no addressInfo. O endereço principal em string fica com o display_name (ou string do address)
+        const finalAddressString = isAddressObject ? (display_name || JSON.stringify(address)) : (address || display_name);
+        const finalAddressInfo = isAddressObject ? address : addressInfo;
 
         const newProposal = await prisma.proposal.create({
             data: {
@@ -30,6 +78,27 @@ export const createProposal = async (req, res) => {
                 requestedValue,
                 term,
                 purpose,
+                financedValue,
+                gracePeriod,
+                sector,
+                creditType,
+                companyName,
+                industry,
+                size,
+                machinery,
+                revenue,
+                email,
+                phone,
+                zip,
+                state,
+                city,
+                neighborhood,
+                address: finalAddressString,
+                addressInfo: finalAddressInfo,
+                latitude: latitude !== undefined ? latitude : lat,
+                longitude: longitude !== undefined ? longitude : lon,
+                addressType: addressType || addresstype,
+                boundingBox: boundingBox || boundingbox,
                 userId,
                 ...(guarantees && guarantees.length > 0 && {
                     guarantees: {

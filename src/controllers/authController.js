@@ -12,16 +12,23 @@ const registerSchema = z.object({
     pfDetails: z.object({
         cpf: z.string().length(11, 'O CPF deve ter 11 dígitos.'),
         rg: z.string().nullable().optional(),
+        rgIssuer: z.string().nullable().optional(),
         birthDate: z.string().nullable().optional(),
+        nationality: z.string().nullable().optional(),
+        gender: z.string().nullable().optional(),
         maritalStatus: z.enum(['SOLTEIRO', 'CASADO', 'DIVORCIADO', 'VIUVO', 'UNIAO_ESTAVEL']).nullable().optional(),
         motherName: z.string().nullable().optional(),
         monthlyIncome: z.string().nullable().optional(),
         occupation: z.string().nullable().optional(),
+        phone: z.string().nullable().optional(),
         address: z.string().nullable().optional(),
+        addressNumber: z.string().nullable().optional(),
         neighborhood: z.string().nullable().optional(),
         city: z.string(),
         state: z.string().length(2, 'A sigla do estado deve ter 2 letras.'),
-        zipCode: z.string()
+        zipCode: z.string(),
+        latitude: z.number().nullable().optional(),
+        longitude: z.number().nullable().optional()
     }).nullable().optional(),
     pjDetails: z.object({
         cnpj: z.string().length(14, 'O CNPJ deve ter 14 dígitos.'),
@@ -33,27 +40,47 @@ const registerSchema = z.object({
         foundedDate: z.string().nullable().optional(),
         machineryCount: z.string().nullable().optional(),
         employeeCount: z.string().nullable().optional(),
+        stateRegistration: z.string().nullable().optional(),
+        cpf: z.string().length(11, 'O CPF deve ter 11 dígitos.').optional(),
+        rg: z.string().nullable().optional(),
+        rgIssuer: z.string().nullable().optional(),
+        birthDate: z.string().nullable().optional(),
+        nationality: z.string().nullable().optional(),
+        gender: z.string().nullable().optional(),
+        phone: z.string().nullable().optional(),
         address: z.string().nullable().optional(),
+        addressNumber: z.string().nullable().optional(),
         neighborhood: z.string().nullable().optional(),
         city: z.string(),
         state: z.string().length(2, 'A sigla do estado deve ter 2 letras.'),
-        zipCode: z.string()
+        zipCode: z.string(),
+        latitude: z.number().nullable().optional(),
+        longitude: z.number().nullable().optional(),
+        mainPartnerName: z.string().nullable().optional(),
+        fullName: z.string().nullable().optional()
     }).nullable().optional()
 });
 
 const updatePfSchema = z.object({
     cpf: z.string().length(11, 'O CPF deve ter 11 dígitos.').optional(),
     rg: z.string().nullable().optional(),
+    rgIssuer: z.string().nullable().optional(),
     birthDate: z.string().nullable().optional(),
+    nationality: z.string().nullable().optional(),
+    gender: z.string().nullable().optional(),
     maritalStatus: z.enum(['SOLTEIRO', 'CASADO', 'DIVORCIADO', 'VIUVO', 'UNIAO_ESTAVEL']).nullable().optional(),
     motherName: z.string().nullable().optional(),
     monthlyIncome: z.string().nullable().optional(),
     occupation: z.string().nullable().optional(),
+    phone: z.string().nullable().optional(),
     address: z.string().nullable().optional(),
+    addressNumber: z.string().nullable().optional(),
     neighborhood: z.string().nullable().optional(),
     city: z.string().optional(),
     state: z.string().length(2, 'A sigla do estado deve ter 2 letras.').optional(),
-    zipCode: z.string().optional()
+    zipCode: z.string().optional(),
+    latitude: z.number().nullable().optional(),
+    longitude: z.number().nullable().optional()
 });
 
 const updatePjSchema = z.object({
@@ -66,11 +93,24 @@ const updatePjSchema = z.object({
     foundedDate: z.string().nullable().optional(),
     machineryCount: z.string().nullable().optional(),
     employeeCount: z.string().nullable().optional(),
+    stateRegistration: z.string().nullable().optional(),
+    cpf: z.string().length(11, 'O CPF deve ter 11 dígitos.').optional(),
+    rg: z.string().nullable().optional(),
+    rgIssuer: z.string().nullable().optional(),
+    birthDate: z.string().nullable().optional(),
+    nationality: z.string().nullable().optional(),
+    gender: z.string().nullable().optional(),
+    phone: z.string().nullable().optional(),
     address: z.string().nullable().optional(),
+    addressNumber: z.string().nullable().optional(),
     neighborhood: z.string().nullable().optional(),
     city: z.string().optional(),
     state: z.string().length(2, 'A sigla do estado deve ter 2 letras.').optional(),
-    zipCode: z.string().optional()
+    zipCode: z.string().optional(),
+    latitude: z.number().nullable().optional(),
+    longitude: z.number().nullable().optional(),
+    mainPartnerName: z.string().nullable().optional(),
+    fullName: z.string().nullable().optional()
 });
 
 const loginSchema = z.object({
@@ -95,6 +135,24 @@ export const register = async (req, res) => {
 
         if (existingUser) {
             return res.status(400).json({ error: 'Este e-mail já está em uso.' });
+        }
+
+        if (pfType === 'FISICA' && pfDetails?.cpf) {
+            const existingCpf = await prisma.pessoaFisica.findUnique({
+                where: { cpf: pfDetails.cpf }
+            });
+            if (existingCpf) {
+                return res.status(400).json({ error: 'Este CPF já está em uso.' });
+            }
+        }
+
+        if (pfType === 'JURIDICA' && pjDetails?.cnpj) {
+            const existingCnpj = await prisma.pessoaJuridica.findUnique({
+                where: { cnpj: pjDetails.cnpj }
+            });
+            if (existingCnpj) {
+                return res.status(400).json({ error: 'Este CNPJ já está em uso.' });
+            }
         }
 
         const salt = await bcrypt.genSalt(10);
@@ -136,7 +194,8 @@ export const register = async (req, res) => {
                             foundedDate: pjDetails.foundedDate ? new Date(pjDetails.foundedDate) : null,
                             machineryCount: pjDetails.machineryCount ? Number(pjDetails.machineryCount) : null,
                             employeeCount: pjDetails.employeeCount ? Number(pjDetails.employeeCount) : null,
-                            annualRevenue: pjDetails.annualRevenue ? Number(pjDetails.annualRevenue) : null
+                            annualRevenue: pjDetails.annualRevenue ? Number(pjDetails.annualRevenue) : null,
+                            birthDate: pjDetails.birthDate ? new Date(pjDetails.birthDate) : null
                         }
                     }
                 })
@@ -361,7 +420,8 @@ export const updatePjDetails = async (req, res) => {
             ...(data.foundedDate && { foundedDate: new Date(data.foundedDate) }),
             ...(data.machineryCount && { machineryCount: Number(data.machineryCount) }),
             ...(data.employeeCount && { employeeCount: Number(data.employeeCount) }),
-            ...(data.annualRevenue && { annualRevenue: Number(data.annualRevenue) })
+            ...(data.annualRevenue && { annualRevenue: Number(data.annualRevenue) }),
+            ...(data.birthDate && { birthDate: new Date(data.birthDate) })
         };
 
         const updatedPj = await prisma.pessoaJuridica.upsert({
