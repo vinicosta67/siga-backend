@@ -62,16 +62,16 @@ model PessoaFisica {
   id            String         @id @default(uuid())
   cpf           String         @unique
   rg            String?
-  birthDate     DateTime?      @db.Date
+  birthDate     DateTime      @db.Date
   maritalStatus MaritalStatus?
   motherName    String?
   monthlyIncome Decimal?       @db.Decimal(10, 2)
   occupation    String?
   address       String?
   neighborhood  String?
-  city          String
-  state         String         @db.Char(2)
-  zipCode       String
+  city          String?
+  state         String?         @db.Char(2)
+  zipCode       String?
 
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -134,8 +134,9 @@ model Proposal {
   // Detalhes do Projeto de Crédito
   sector         String?
   creditType     String?
-  requestedValue Decimal  @db.Decimal(15, 2)
+  requestedValue Decimal?  @db.Decimal(15, 2)
   financedValue  Decimal? @db.Decimal(15, 2)
+  monthlyIncome Decimal?  @db.Decimal(15, 2)
   term           Int
   gracePeriod    String?
   purpose        String?
@@ -159,6 +160,11 @@ model Proposal {
   addressType  String?
   boundingBox  Json?
   addressInfo  Json?
+
+  interestRate   String?
+  amortization   String?
+  totalArea      Float?
+  productiveArea Float?
 
   userId     String
   user       User        @relation(fields: [userId], references: [id])

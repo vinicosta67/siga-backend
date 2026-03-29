@@ -18,17 +18,17 @@ const registerSchema = z.object({
         gender: z.string().nullable().optional(),
         maritalStatus: z.enum(['SOLTEIRO', 'CASADO', 'DIVORCIADO', 'VIUVO', 'UNIAO_ESTAVEL']).nullable().optional(),
         motherName: z.string().nullable().optional(),
-        monthlyIncome: z.string().nullable().optional(),
+        monthlyIncome: z.coerce.string().nullable().optional(),
         occupation: z.string().nullable().optional(),
-        phone: z.string().nullable().optional(),
+        phone: z.coerce.string().nullable().optional(),
         address: z.string().nullable().optional(),
-        addressNumber: z.string().nullable().optional(),
+        addressNumber: z.coerce.string().nullable().optional(),
         neighborhood: z.string().nullable().optional(),
         city: z.string(),
         state: z.string().length(2, 'A sigla do estado deve ter 2 letras.'),
-        zipCode: z.string(),
-        latitude: z.number().nullable().optional(),
-        longitude: z.number().nullable().optional()
+        zipCode: z.coerce.string().optional(),
+        latitude: z.coerce.number().nullable().optional(),
+        longitude: z.coerce.number().nullable().optional()
     }).nullable().optional(),
     pjDetails: z.object({
         cnpj: z.string().length(14, 'O CNPJ deve ter 14 dígitos.'),
@@ -36,10 +36,10 @@ const registerSchema = z.object({
         tradeName: z.string().nullable().optional(),
         industry: z.string().nullable().optional(),
         companySize: z.enum(['MEI', 'ME', 'EPP', 'MEDIO', 'GRANDE']).nullable().optional(),
-        annualRevenue: z.string().nullable().optional(),
+        annualRevenue: z.coerce.string().nullable().optional(),
         foundedDate: z.string().nullable().optional(),
-        machineryCount: z.string().nullable().optional(),
-        employeeCount: z.string().nullable().optional(),
+        machineryCount: z.coerce.string().nullable().optional(),
+        employeeCount: z.coerce.string().nullable().optional(),
         stateRegistration: z.string().nullable().optional(),
         cpf: z.string().length(11, 'O CPF deve ter 11 dígitos.').optional(),
         rg: z.string().nullable().optional(),
@@ -47,15 +47,15 @@ const registerSchema = z.object({
         birthDate: z.string().nullable().optional(),
         nationality: z.string().nullable().optional(),
         gender: z.string().nullable().optional(),
-        phone: z.string().nullable().optional(),
+        phone: z.coerce.string().nullable().optional(),
         address: z.string().nullable().optional(),
-        addressNumber: z.string().nullable().optional(),
+        addressNumber: z.coerce.string().nullable().optional(),
         neighborhood: z.string().nullable().optional(),
         city: z.string(),
         state: z.string().length(2, 'A sigla do estado deve ter 2 letras.'),
-        zipCode: z.string(),
-        latitude: z.number().nullable().optional(),
-        longitude: z.number().nullable().optional(),
+        zipCode: z.coerce.string(),
+        latitude: z.coerce.number().nullable().optional(),
+        longitude: z.coerce.number().nullable().optional(),
         mainPartnerName: z.string().nullable().optional(),
         fullName: z.string().nullable().optional()
     }).nullable().optional()
@@ -228,7 +228,8 @@ export const register = async (req, res) => {
         });
     } catch (error) {
         if (error instanceof z.ZodError) {
-            return res.status(400).json({ error: error.errors[0].message });
+            const errorMessage = error.issues ? error.issues[0].message : (error.errors?.[0]?.message || 'Erro de validação.');
+            return res.status(400).json({ error: errorMessage });
         }
         console.error('Erro no registro: ', error);
         res.status(500).json({ error: 'Erro interno no servidor.' });
@@ -279,7 +280,8 @@ export const login = async (req, res) => {
         });
     } catch (error) {
         if (error instanceof z.ZodError) {
-            return res.status(400).json({ error: error.errors[0].message });
+            const errorMessage = error.issues ? error.issues[0].message : (error.errors?.[0]?.message || 'Erro de validação.');
+            return res.status(400).json({ error: errorMessage });
         }
         console.error('Erro no login: ', error);
         res.status(500).json({ error: 'Erro interno no servidor.' });
@@ -343,7 +345,8 @@ export const updateUser = async (req, res) => {
 
     } catch (error) {
         if (error instanceof z.ZodError) {
-            return res.status(400).json({ error: error.errors[0].message });
+            const errorMessage = error.issues ? error.issues[0].message : (error.errors?.[0]?.message || 'Erro de validação.');
+            return res.status(400).json({ error: errorMessage });
         }
         console.error('Erro na atualização de usuário: ', error);
         res.status(500).json({ error: 'Erro interno no servidor.' });
@@ -390,7 +393,8 @@ export const updatePfDetails = async (req, res) => {
 
     } catch (error) {
         if (error instanceof z.ZodError) {
-            return res.status(400).json({ error: error.errors[0].message });
+            const errorMessage = error.issues ? error.issues[0].message : (error.errors?.[0]?.message || 'Erro de validação.');
+            return res.status(400).json({ error: errorMessage });
         }
         console.error('Erro na atualização PF: ', error);
         res.status(500).json({ error: 'Erro interno no servidor.' });
@@ -440,9 +444,84 @@ export const updatePjDetails = async (req, res) => {
 
     } catch (error) {
         if (error instanceof z.ZodError) {
-            return res.status(400).json({ error: error.errors[0].message });
+            const errorMessage = error.issues ? error.issues[0].message : (error.errors?.[0]?.message || 'Erro de validação.');
+            return res.status(400).json({ error: errorMessage });
         }
         console.error('Erro na atualização PJ: ', error);
+        res.status(500).json({ error: 'Erro interno no servidor.' });
+    }
+};
+
+export const getUserByIdentifier = async (req, res) => {
+    try {
+        const { identifier } = req.params;
+
+        // Verifica se o identificador formato é um CPF (11 dígitos) ou CNPJ (14 dígitos) numéricos apenas
+        const isCpf = /^\d{11}$/.test(identifier);
+        const isCnpj = /^\d{14}$/.test(identifier);
+
+        let user;
+
+        if (isCpf || isCnpj) {
+            let userIdToSearch = null;
+
+            if (isCpf) {
+                // Tenta achar na PessoaFisica
+                const pf = await prisma.pessoaFisica.findUnique({ where: { cpf: identifier } });
+                if (pf) {
+                    userIdToSearch = pf.userId;
+                } else {
+                    // Se não achar, tenta na PessoaJuridica usando findFirst (já que cpf em PJ não é @unique)
+                    const pj = await prisma.pessoaJuridica.findFirst({ where: { cpf: identifier } });
+                    if (pj) {
+                        userIdToSearch = pj.userId;
+                    }
+                }
+            } else if (isCnpj) {
+                // Tenta achar na PessoaJuridica pelo CNPJ
+                const pj = await prisma.pessoaJuridica.findUnique({ where: { cnpj: identifier } });
+                if (pj) {
+                    userIdToSearch = pj.userId;
+                }
+            }
+
+            if (!userIdToSearch) {
+                return res.status(404).json({ error: 'Usuário não encontrado com este identificador corporativo (CPF/CNPJ).' });
+            }
+
+            user = await prisma.user.findUnique({
+                where: { id: userIdToSearch },
+                include: {
+                    pessoaFisica: true,
+                    pessoaJuridica: true
+                }
+            });
+        } else {
+            // Busca o usuário pelo ID
+            user = await prisma.user.findUnique({
+                where: { id: identifier },
+                include: {
+                    pessoaFisica: true,
+                    pessoaJuridica: true
+                }
+            });
+        }
+
+        if (!user) {
+            return res.status(404).json({ error: 'Usuário não encontrado.' });
+        }
+
+        res.json({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            pfType: user.pfType,
+            pfDetails: user.pfType === 'FISICA' ? (user.pessoaFisica || null) : null,
+            pjDetails: user.pfType === 'JURIDICA' ? (user.pessoaJuridica || null) : null
+        });
+
+    } catch (error) {
+        console.error('Erro ao buscar usuário: ', error);
         res.status(500).json({ error: 'Erro interno no servidor.' });
     }
 };

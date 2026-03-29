@@ -12,21 +12,26 @@ const createProposalSchema = z.object({
     term: z.number().int().positive('O prazo deve ser positivo.'),
     purpose: z.string().optional(),
     
-    // Outros dados do Projeto de Crédito
+    // Detalhes do Projeto de Crédito
     financedValue: z.number().positive().optional(),
-    gracePeriod: z.string().optional(),
+    gracePeriod: z.coerce.string().optional(),
     sector: z.string().optional(),
     creditType: z.string().optional(),
+    monthlyIncome: z.coerce.number().optional(),
+    interestRate: z.coerce.string().optional(),
+    amortization: z.coerce.string().optional(),
+    totalArea: z.coerce.number().optional(),
+    productiveArea: z.coerce.number().optional(),
 
     // Detalhes da Empresa
     companyName: z.string().optional(),
     industry: z.string().optional(),
     size: z.string().optional(),
-    machinery: z.string().optional(),
-    revenue: z.string().optional(),
+    machinery: z.coerce.string().optional(),
+    revenue: z.coerce.string().optional(),
     email: z.string().optional(),
-    phone: z.string().optional(),
-    zip: z.string().optional(),
+    phone: z.coerce.string().optional(),
+    zip: z.coerce.string().optional(),
     state: z.string().optional(),
     city: z.string().optional(),
     neighborhood: z.string().optional(),
@@ -45,9 +50,12 @@ const createProposalSchema = z.object({
     boundingBox: z.any().optional(),
 
     guarantees: z.array(z.object({
-        type: z.string(),
-        description: z.string(),
-        estimatedValue: z.number().positive().optional()
+        type: z.string().optional(),
+        description: z.string().optional(),
+        estimatedValue: z.number().positive().optional(),
+        assetType: z.string().optional(),
+        assetName: z.string().optional(),
+        assetValue: z.number().positive().optional()
     })).optional()
 });
 
@@ -57,6 +65,7 @@ export const createProposal = async (req, res) => {
         const {
             title, type, requestedValue, term, purpose, guarantees,
             financedValue, gracePeriod, sector, creditType,
+            monthlyIncome, interestRate, amortization, totalArea, productiveArea,
             companyName, industry, size, machinery, revenue, email, phone, zip, state, city, neighborhood,
             address, addressInfo, display_name,
             lat, lon, latitude, longitude,
@@ -82,6 +91,11 @@ export const createProposal = async (req, res) => {
                 gracePeriod,
                 sector,
                 creditType,
+                monthlyIncome,
+                interestRate,
+                amortization,
+                totalArea,
+                productiveArea,
                 companyName,
                 industry,
                 size,
@@ -103,9 +117,9 @@ export const createProposal = async (req, res) => {
                 ...(guarantees && guarantees.length > 0 && {
                     guarantees: {
                         create: guarantees.map(g => ({
-                            type: g.type,
-                            description: g.description,
-                            estimatedValue: g.estimatedValue
+                            type: g.type || g.assetType || 'Não especificado',
+                            description: g.description || g.assetName || 'Não especificada',
+                            estimatedValue: g.estimatedValue || g.assetValue || 0
                         }))
                     }
                 })
@@ -121,7 +135,8 @@ export const createProposal = async (req, res) => {
         });
     } catch (error) {
         if (error instanceof z.ZodError) {
-            return res.status(400).json({ error: error.errors[0].message });
+            const errorMessage = error.issues ? `Campo '${error.issues[0].path.join('.')}': ${error.issues[0].message}` : (error.errors?.[0]?.message || 'Erro de validação.');
+            return res.status(400).json({ error: errorMessage });
         }
         console.error('Erro na criação de proposta: ', error);
         res.status(500).json({ error: 'Erro interno no servidor.' });

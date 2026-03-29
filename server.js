@@ -7,6 +7,7 @@ import authRoutes from './src/routes/authRoutes.js';
 import permissionRoutes from './src/routes/permissionRoutes.js';
 import proposalRoutes from './src/routes/proposalRoutes.js';
 import visitRoutes from './src/routes/visitRoutes.js';
+import xcurveRoutes from './src/routes/xcurveRoutes.js';
 
 dotenv.config();
 
@@ -35,6 +36,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/permissions', permissionRoutes);
 app.use('/api/proposals', proposalRoutes);
 app.use('/api/visitas', visitRoutes);
+app.use('/api/xcurve', xcurveRoutes);
 
 app.get('/', (req, res) => {
     res.json({ message: "Servidor SIGA-Backend Online e rodando!" });
