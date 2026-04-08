@@ -32,3 +32,14 @@ export const protect = async (req, res, next) => {
         res.status(401).json({ error: 'Não autorizado, nenhum token fornecido.' });
     }
 };
+
+export const requireAdmin = (req, res, next) => {
+    if (!req.user || !req.user.permissions) {
+        return res.status(401).json({ message: "Não autorizado" });
+    }
+    const isAdmin = req.user.permissions.some(p => p.id === 1005);
+    if (!isAdmin) {
+        return res.status(403).json({ message: "Acesso restrito ao administrador" });
+    }
+    next();
+};

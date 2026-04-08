@@ -4,12 +4,27 @@ const prisma = new PrismaClient();
 
 export const getUsers = async (req, res) => {
     try {
+        const search = req.query.search;
+        let whereClause = {};
+
+        if (search) {
+            whereClause = {
+                OR: [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { email: { contains: search, mode: 'insensitive' } }
+                ]
+            };
+        }
+
         const users = await prisma.user.findMany({
+            where: whereClause,
             select: {
                 id: true,
                 name: true,
                 email: true,
                 pfType: true,
+                createdAt: true,
+                permissions: { select: { id: true } },
                 pessoaFisica: { select: { cpf: true } },
                 pessoaJuridica: { select: { cnpj: true } }
             }
@@ -20,6 +35,8 @@ export const getUsers = async (req, res) => {
             name: user.name,
             email: user.email,
             pfType: user.pfType,
+            permissionId: user.permissions.length > 0 ? user.permissions[0].id : null,
+            createdAt: user.createdAt,
             pfDetails: user.pfType === 'FISICA' && user.pessoaFisica ? { cpf: user.pessoaFisica.cpf } : null,
             pjDetails: user.pfType === 'JURIDICA' && user.pessoaJuridica ? { cnpj: user.pessoaJuridica.cnpj } : null
         }));
@@ -106,5 +123,51 @@ export const getUserById = async (req, res) => {
     } catch (error) {
         console.error('Erro ao buscar detalhes do cliente: ', error);
         res.status(500).json({ error: 'Erro interno no servidor.' });
+    }
+};
+
+export const updateUserRole = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { permissionId } = req.body;
+
+        if (!permissionId) {
+            return res.status(400).json({ success: false, message: "permissionId é obrigatório" });
+        }
+
+        const user = await prisma.user.findUnique({ where: { id }, include: { permissions: true } });
+        if (!user) {
+            return res.status(404).json({ success: false, message: "Usuário não encontrado" });
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id },
+            data: {
+                permissions: {
+                    set: [], 
+                    connect: { id: Number(permissionId) } 
+                }
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                permissions: true
+            }
+        });
+
+        res.json({
+            success: true,
+            user: {
+                id: updatedUser.id,
+                name: updatedUser.name,
+                email: updatedUser.email,
+                permissionId: updatedUser.permissions.length > 0 ? updatedUser.permissions[0].id : null
+            }
+        });
+
+    } catch (error) {
+        console.error("Erro ao alterar papel do usuário: ", error);
+        res.status(500).json({ success: false, message: "Erro interno no servidor." });
     }
 };

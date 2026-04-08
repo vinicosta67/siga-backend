@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect } from '../middlewares/authMiddleware.js';
+import { protect, requireAdmin } from '../middlewares/authMiddleware.js';
 import {
     createProposal,
     updateProposal,
@@ -9,7 +9,8 @@ import {
     getProposalById,
     getTimelineEvents,
     createTimelineEvent,
-    getProposalsStats
+    getProposalsStats,
+    reassignProposalOwner
 } from '../controllers/proposalController.js';
 
 const router = express.Router();
@@ -19,6 +20,7 @@ router.get('/', protect, getProposals);
 router.get('/stats', protect, getProposalsStats);
 router.get('/:proposalId', protect, getProposalById);
 router.put('/:proposalId', protect, updateProposal);
+router.put('/:proposalId/owner', protect, requireAdmin, reassignProposalOwner);
 router.post('/:proposalId/documents', protect, uploadBuffer.single('documentFile'), uploadDocument);
 
 // Rotas de Timeline

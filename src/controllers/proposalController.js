@@ -556,3 +556,28 @@ export const getProposalsStats = async (req, res) => {
     }
 };
 
+export const reassignProposalOwner = async (req, res) => {
+    try {
+        const { proposalId } = req.params;
+        const { userId } = req.body; // analystId recebido do front
+
+        if (!userId) {
+            return res.status(400).json({ success: false, message: "userId (analista) é obrigatório." });
+        }
+
+        const proposal = await prisma.proposal.findUnique({ where: { id: proposalId } });
+        if (!proposal) return res.status(404).json({ success: false, message: "Proposta não encontrada." });
+
+        const updatedProposal = await prisma.proposal.update({
+            where: { id: proposalId },
+            data: { analystId: userId },
+            select: { id: true, userId: true, analystId: true }
+        });
+
+        res.json({ success: true, proposal: updatedProposal });
+    } catch (error) {
+        console.error("Erro em reassignProposalOwner: ", error);
+        res.status(500).json({ success: false, message: "Erro interno no servidor." });
+    }
+};
+
