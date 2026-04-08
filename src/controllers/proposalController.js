@@ -80,6 +80,26 @@ export const createProposal = async (req, res) => {
         const finalAddressString = isAddressObject ? (display_name || JSON.stringify(address)) : (address || display_name);
         const finalAddressInfo = isAddressObject ? address : addressInfo;
 
+        // Balanceamento de carga Round-Robin para o próximo analista
+        const nextAnalyst = await prisma.user.findFirst({
+            where: {
+                permissions: { some: { id: 1002 } } // Permissão de Analista
+            },
+            orderBy: {
+                lastAssignedAt: 'asc' // Pega o que recebeu proposta há mais tempo (ou nulo primeiro)
+            }
+        });
+
+        let assignedAnalystId = null;
+        if (nextAnalyst) {
+            assignedAnalystId = nextAnalyst.id;
+            // Atualiza a data pro final da fila
+            await prisma.user.update({
+                where: { id: nextAnalyst.id },
+                data: { lastAssignedAt: new Date() }
+            });
+        }
+
         const newProposal = await prisma.proposal.create({
             data: {
                 title,
@@ -114,6 +134,7 @@ export const createProposal = async (req, res) => {
                 addressType: addressType || addresstype,
                 boundingBox: boundingBox || boundingbox,
                 userId,
+                analystId: assignedAnalystId,
                 ...(guarantees && guarantees.length > 0 && {
                     guarantees: {
                         create: guarantees.map(g => ({
@@ -257,8 +278,22 @@ export const getProposals = async (req, res) => {
             include: { permissions: true }
         });
         const isClient = fullUser.permissions.some(p => p.id === 1004);
+        const isAnalyst = fullUser.permissions.some(p => p.id === 1002);
+        const isManager = fullUser.permissions.some(p => p.id === 1001); // Gerente ou superiores veem tudo
 
-        const whereClause = isClient ? { userId } : {};
+        // Lógica de Visibilidade:
+        let whereClause = {};
+        if (isClient) {
+            whereClause = { userId }; // Cliente só vê a dele
+        } else if (isAnalyst && !isManager) {
+            // Se for analista e não for gerente, vê SOMENTE as repassadas a ele e as sem analista por precaução
+            whereClause = { 
+                OR: [
+                    { analystId: userId },
+                    { analystId: null }
+                ]
+            };
+        }
 
         const proposals = await prisma.proposal.findMany({
             where: whereClause,
@@ -268,6 +303,12 @@ export const getProposals = async (req, res) => {
                         name: true,
                         email: true,
                         pfType: true
+                    }
+                },
+                analyst: {
+                    select: {
+                        name: true,
+                        email: true
                     }
                 }
             },
@@ -290,6 +331,7 @@ export const getProposalById = async (req, res) => {
             include: {
                 documents: true,
                 guarantees: true,
+                analyst: { select: { id: true, name: true, email: true } },
                 user: {
                     include: {
                         pessoaFisica: true,
@@ -368,6 +410,149 @@ export const createTimelineEvent = async (req, res) => {
         }
         console.error('Erro ao criar evento na timeline: ', error);
         res.status(500).json({ error: 'Erro interno ao adicionar evento na timeline.' });
+    }
+};
+
+const SLA_CONFIG = {
+    'CECAD': 5,
+    'GECRE': 15,
+    'GEOPE': 10,
+    'GERPF': 10,
+    'GERIS': 5,
+    'CCONS': 10,
+    'GEJUR': 10,
+    'COGEC': 10,
+    'DIREX': 5
+};
+
+const getSlaInfo = (department, updatedAt) => {
+    const slaMax = SLA_CONFIG[department] || 30;
+    const diffTime = Math.abs(new Date() - new Date(updatedAt));
+    const daysInStage = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return {
+        daysInStage,
+        slaMax,
+        slaPercent: Math.min((daysInStage / slaMax) * 100, 100),
+        isOverdue: daysInStage >= slaMax,
+        isFrozen: daysInStage > (slaMax * 2)
+    };
+};
+
+export const getProposalsStats = async (req, res) => {
+    try {
+        const { department, segment, dateFrom, dateTo } = req.query;
+
+        const excludedStatuses = ['FINALIZADA', 'CANCELADA', 'REJEITADA', 'RECUSADA', 'EXPIRADA'];
+        const activeWhere = { status: { notIn: excludedStatuses } };
+        
+        if (department) activeWhere.department = department;
+        if (dateFrom || dateTo) {
+            activeWhere.createdAt = {};
+            if (dateFrom) activeWhere.createdAt.gte = new Date(dateFrom);
+            if (dateTo) activeWhere.createdAt.lte = new Date(dateTo);
+        }
+
+        const activeProposals = await prisma.proposal.findMany({
+            where: activeWhere,
+            include: { user: { select: { name: true, pfType: true } } }
+        });
+
+        const totalActive = activeProposals.length;
+        let onTimeCount = 0;
+        let frozenCount = 0;
+        const byDepartmentMap = {};
+        const bySegmentMap = {};
+
+        const alertsList = [];
+
+        activeProposals.forEach(p => {
+            const depto = p.department || 'CECAD';
+            const slaInfo = getSlaInfo(depto, p.updatedAt);
+            
+            if (!slaInfo.isOverdue) onTimeCount++;
+            if (slaInfo.isFrozen) frozenCount++;
+
+            byDepartmentMap[depto] = (byDepartmentMap[depto] || 0) + 1;
+
+            let seg = 'Outro';
+            if (p.sector) {
+                seg = p.sector;
+            } else if (p.user.pfType === 'JURIDICA') {
+                seg = 'Corporate';
+            } else if (p.user.pfType === 'FISICA') {
+                seg = 'Varejo';
+            }
+            if (!segment || segment === seg) {
+               bySegmentMap[seg] = (bySegmentMap[seg] || 0) + 1;
+            }
+
+            alertsList.push({
+                proposalId: p.id,
+                proponent: p.companyName || p.user.name || 'Desconhecido',
+                stage: depto,
+                department: depto,
+                daysInStage: slaInfo.daysInStage,
+                slaPercent: slaInfo.slaPercent,
+                isOverdue: slaInfo.isOverdue,
+                updatedAt: p.updatedAt
+            });
+        });
+
+        const onTimePercent = totalActive > 0 ? Number(((onTimeCount / totalActive) * 100).toFixed(1)) : 0;
+        const frozenPercent = totalActive > 0 ? Number(((frozenCount / totalActive) * 100).toFixed(1)) : 0;
+
+        alertsList.sort((a, b) => {
+            if (a.isOverdue && !b.isOverdue) return -1;
+            if (!a.isOverdue && b.isOverdue) return 1;
+            if (b.daysInStage !== a.daysInStage) return b.daysInStage - a.daysInStage;
+            return new Date(a.updatedAt) - new Date(b.updatedAt);
+        });
+        const criticalAlerts = alertsList.slice(0, 5).map(({ updatedAt, ...rest }) => rest);
+        
+        let sparklineWhere = {};
+        if (department) sparklineWhere.department = department;
+        
+        const sparklineProposals = await prisma.proposal.findMany({
+            where: sparklineWhere,
+            select: { createdAt: true, requestedValue: true }
+        });
+
+        const sparklineMap = {};
+        
+        const today = new Date();
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            sparklineMap[key] = { count: 0, value: 0 };
+        }
+
+        sparklineProposals.forEach(p => {
+            const d = new Date(p.createdAt);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (sparklineMap[key] !== undefined) {
+                sparklineMap[key].count++;
+                sparklineMap[key].value += Number(p.requestedValue || 0);
+            }
+        });
+
+        const sparkline = Object.keys(sparklineMap).sort().map(month => ({
+            month,
+            count: sparklineMap[month].count,
+            value: sparklineMap[month].value
+        }));
+
+        res.json({
+            onTime: { count: onTimeCount, percent: onTimePercent, total: totalActive },
+            frozen: { count: frozenCount, percent: frozenPercent, total: totalActive },
+            byDepartment: Object.entries(byDepartmentMap).map(([name, count]) => ({ name, count })).sort((a,b) => b.count - a.count),
+            bySegment: Object.entries(bySegmentMap).map(([name, count]) => ({ name, count, percent: Number(((count / totalActive)*100).toFixed(1)) })).sort((a,b) => b.count - a.count),
+            sparkline,
+            criticalAlerts
+        });
+
+    } catch (error) {
+        console.error("Erro em getProposalsStats:", error);
+        res.status(500).json({ error: "Erro interno no servidor ao calcular stats." });
     }
 };
 

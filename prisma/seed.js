@@ -9,7 +9,8 @@ async function main() {
         { "id": 1001, "description": "Permissão Gerente 1001" },
         { "id": 1002, "description": "Permissão Analista 1002" },
         { "id": 1003, "description": "Permissão Suporte 1003" },
-        { "id": 1004, "description": "Permissão Cliente 1004" }
+        { "id": 1004, "description": "Permissão Cliente 1004" },
+        { "id": 1005, "description": "Permissão Administrador 1005" }
     ];
 
     for (const perm of permissions) {

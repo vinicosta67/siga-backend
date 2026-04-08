@@ -19,6 +19,7 @@ model User {
   emailTokenExpiry       DateTime?
   resetPasswordToken     String?
   resetPasswordExpiry    DateTime?
+  lastAssignedAt         DateTime? @default("1970-01-01T00:00:00.000Z")
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
@@ -27,6 +28,7 @@ model User {
 
   permissions Permission[] @relation("users_permissions")
   proposals   Proposal[]
+  analysedProposals Proposal[] @relation("analyst_proposals")
   visits      Visit[]
   timelineEvents TimelineEvent[]
 
@@ -175,6 +177,8 @@ model Proposal {
 
   userId     String
   user       User        @relation(fields: [userId], references: [id])
+  analystId  String?
+  analyst    User?       @relation("analyst_proposals", fields: [analystId], references: [id])
   documents  Document[]
   guarantees Guarantee[]
   timelineEvents TimelineEvent[]
