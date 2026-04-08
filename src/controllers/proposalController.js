@@ -143,6 +143,56 @@ export const createProposal = async (req, res) => {
     }
 };
 
+const updateProposalSchema = createProposalSchema.partial().extend({
+    department: z.string().optional(),
+    status: z.string().optional()
+});
+
+export const updateProposal = async (req, res) => {
+    try {
+        const { proposalId } = req.params;
+        const parsedData = updateProposalSchema.parse(req.body);
+
+        const proposal = await prisma.proposal.findUnique({ where: { id: proposalId } });
+        if (!proposal) return res.status(404).json({ error: 'Proposta não encontrada.' });
+
+        const { address, addressInfo, display_name, lat, lon, latitude, longitude, addresstype, addressType, boundingbox, boundingBox, guarantees, ...restData } = parsedData;
+
+        let finalAddressString = undefined;
+        let finalAddressInfo = undefined;
+
+        if (address !== undefined || display_name !== undefined) {
+            const isAddressObject = typeof address === 'object' && address !== null;
+            finalAddressString = isAddressObject ? (display_name || JSON.stringify(address)) : (address || display_name);
+            finalAddressInfo = isAddressObject ? address : addressInfo;
+        }
+
+        const updateData = {
+            ...restData,
+            ...(finalAddressString !== undefined && { address: finalAddressString }),
+            ...(finalAddressInfo !== undefined && { addressInfo: finalAddressInfo }),
+            ...(latitude !== undefined ? { latitude } : (lat !== undefined ? { latitude: lat } : {})),
+            ...(longitude !== undefined ? { longitude } : (lon !== undefined ? { longitude: lon } : {})),
+            ...(addressType !== undefined ? { addressType } : (addresstype !== undefined ? { addressType: addresstype } : {})),
+            ...(boundingBox !== undefined ? { boundingBox } : (boundingbox !== undefined ? { boundingBox: boundingbox } : {}))
+        };
+
+        const updatedProposal = await prisma.proposal.update({
+            where: { id: proposalId },
+            data: updateData
+        });
+
+        res.json({ message: 'Proposta atualizada com sucesso!', proposal: updatedProposal });
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            const errorMessage = error.issues ? `Campo '${error.issues[0].path.join('.')}': ${error.issues[0].message}` : 'Erro de validação.';
+            return res.status(400).json({ error: errorMessage });
+        }
+        console.error('Erro ao atualizar proposta: ', error);
+        res.status(500).json({ error: 'Erro interno ao atualizar proposta.' });
+    }
+};
+
 export const uploadDocument = async (req, res) => {
     try {
         const { proposalId } = req.params;
@@ -259,3 +309,65 @@ export const getProposalById = async (req, res) => {
         res.status(500).json({ error: 'Erro interno no servidor.' });
     }
 };
+
+const createTimelineEventSchema = z.object({
+    eventType: z.enum(['STATUS_CHANGE', 'COMMENT', 'PENDENCY_CREATED', 'DOCUMENT_ATTACHED', 'SYSTEM_LOG']),
+    content: z.any().optional()
+});
+
+export const getTimelineEvents = async (req, res) => {
+    try {
+        const { proposalId } = req.params;
+        const events = await prisma.timelineEvent.findMany({
+            where: { proposalId },
+            include: {
+                user: {
+                    select: {
+                        name: true,
+                        email: true
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
+        res.json(events);
+    } catch (error) {
+        console.error('Erro ao buscar timeline da proposta: ', error);
+        res.status(500).json({ error: 'Erro interno ao buscar eventos da timeline.' });
+    }
+};
+
+export const createTimelineEvent = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { proposalId } = req.params;
+        const { eventType, content } = createTimelineEventSchema.parse(req.body);
+
+        const proposal = await prisma.proposal.findUnique({ where: { id: proposalId } });
+        if (!proposal) return res.status(404).json({ error: 'Proposta não encontrada.' });
+
+        const newEvent = await prisma.timelineEvent.create({
+            data: {
+                proposalId,
+                userId,
+                eventType,
+                content: content || {}
+            },
+            include: {
+                user: { select: { name: true } }
+            }
+        });
+
+        res.status(201).json(newEvent);
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            const errorMessage = error.issues ? `Campo '${error.issues[0].path.join('.')}': ${error.issues[0].message}` : 'Erro de validação.';
+            return res.status(400).json({ error: errorMessage });
+        }
+        console.error('Erro ao criar evento na timeline: ', error);
+        res.status(500).json({ error: 'Erro interno ao adicionar evento na timeline.' });
+    }
+};
+

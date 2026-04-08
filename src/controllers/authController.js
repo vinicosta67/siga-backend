@@ -2,6 +2,8 @@ import prisma from '../config/db.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import crypto from 'crypto';
+import { sendVerificationEmail } from '../services/emailService.js';
 
 const registerSchema = z.object({
     name: z.string().min(2, 'O nome deve ter no mínimo 2 caracteres.'),
@@ -167,12 +169,20 @@ export const register = async (req, res) => {
             return res.status(400).json({ error: 'Os detalhes da pessoa jurídica (pjDetails) são obrigatórios para este tipo de conta.' });
         }
 
+        const emailVerified = false;
+        const verificationToken = Math.floor(100000 + Math.random() * 900000).toString();
+        const tokenExpiry = new Date();
+        tokenExpiry.setHours(tokenExpiry.getHours() + 24);
+
         const newUser = await prisma.user.create({
             data: {
                 name,
                 email,
                 password: hashedPassword,
                 pfType,
+                emailVerified,
+                emailVerificationToken: verificationToken,
+                emailTokenExpiry: tokenExpiry,
                 ...(permissionId && {
                     permissions: {
                         connect: { id: permissionId }
@@ -207,7 +217,17 @@ export const register = async (req, res) => {
             }
         });
 
-        const token = jwt.sign(
+        try {
+            await sendVerificationEmail(email, verificationToken);
+        } catch (e) {
+            console.error("Falha ao enviar e-mail de verificação:", e);
+        }
+
+        if (process.env.REQUIRE_EMAIL_VERIFICATION === 'true') {
+            return res.status(201).json({ success: true, message: "Verifique seu email para ativar a conta" });
+        }
+
+        const jwtToken = jwt.sign(
             { id: newUser.id },
             process.env.JWT_SECRET || 'supersecretJWT',
             { expiresIn: '1d' }
@@ -215,7 +235,7 @@ export const register = async (req, res) => {
 
         res.status(201).json({
             message: 'Usuário registrado com sucesso',
-            token,
+            token: jwtToken,
             user: {
                 id: newUser.id,
                 name: newUser.name,
@@ -257,6 +277,10 @@ export const login = async (req, res) => {
 
         if (!isMatch) {
             return res.status(400).json({ error: 'Credenciais inválidas.' });
+        }
+
+        if (process.env.REQUIRE_EMAIL_VERIFICATION === 'true' && !user.emailVerified) {
+            return res.status(403).json({ error: 'Verifique seu email antes de fazer login.' });
         }
 
         const token = jwt.sign(
@@ -523,5 +547,78 @@ export const getUserByIdentifier = async (req, res) => {
     } catch (error) {
         console.error('Erro ao buscar usuário: ', error);
         res.status(500).json({ error: 'Erro interno no servidor.' });
+    }
+};
+
+export const verifyEmail = async (req, res) => {
+    try {
+        const { token } = req.body;
+        const requestToken = token || req.params.token;
+
+        if (!requestToken) {
+            return res.status(400).json({ error: "Código de verificação não fornecido." });
+        }
+
+        const user = await prisma.user.findFirst({
+            where: { emailVerificationToken: requestToken }
+        });
+
+        if (!user) {
+            return res.status(400).json({ error: "Código de verificação inválido ou não encontrado." });
+        }
+
+        if (user.emailTokenExpiry && user.emailTokenExpiry < new Date()) {
+            return res.status(400).json({ error: "Código de verificação expirado." });
+        }
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                emailVerified: true,
+                emailVerificationToken: null,
+                emailTokenExpiry: null
+            }
+        });
+
+        res.json({ success: true, message: "E-mail ativado com sucesso!" });
+
+    } catch (error) {
+        console.error("Erro na verificação de e-mail:", error);
+        res.status(500).json({ error: "Erro interno no servidor." });
+    }
+};
+
+export const resendVerification = async (req, res) => {
+    try {
+        const { email } = req.body;
+        const user = await prisma.user.findUnique({ where: { email } });
+
+        if (!user) {
+            return res.status(404).json({ error: "Usuário com este e-mail não encontrado." });
+        }
+
+        if (user.emailVerified) {
+            return res.status(400).json({ error: "Este email já está verificado." });
+        }
+
+        const token = Math.floor(100000 + Math.random() * 900000).toString();
+        const tokenExpiry = new Date();
+        tokenExpiry.setHours(tokenExpiry.getHours() + 24);
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                emailVerificationToken: token,
+                emailTokenExpiry: tokenExpiry
+            }
+        });
+
+        await sendVerificationEmail(email, token);
+
+        res.json({ success: true, message: "Novo código enviado com sucesso para o seu e-mail." });
+
+    } catch (error) {
+        console.error("Erro no reenvio de código:", error);
+        res.status(500).json({ error: "Erro interno no servidor." });
     }
 };

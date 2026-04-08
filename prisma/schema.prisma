@@ -14,8 +14,13 @@ model User {
   email     String   @unique
   password  String
   pfType    PfType   @default(FISICA)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  emailVerified          Boolean   @default(false)
+  emailVerificationToken String?
+  emailTokenExpiry       DateTime?
+  resetPasswordToken     String?
+  resetPasswordExpiry    DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   pessoaFisica   PessoaFisica?
   pessoaJuridica PessoaJuridica?
@@ -23,6 +28,7 @@ model User {
   permissions Permission[] @relation("users_permissions")
   proposals   Proposal[]
   visits      Visit[]
+  timelineEvents TimelineEvent[]
 
   @@map("users")
 }
@@ -140,6 +146,7 @@ model Proposal {
   term           Int
   gracePeriod    String?
   purpose        String?
+  department     String? @default("CECAD")
 
   // Detalhes Complementares da Empresa no momento da Proposta
   companyName  String?
@@ -170,6 +177,7 @@ model Proposal {
   user       User        @relation(fields: [userId], references: [id])
   documents  Document[]
   guarantees Guarantee[]
+  timelineEvents TimelineEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -229,4 +237,26 @@ model Visit {
   opportunities String[] // Novas oportunidades identificadas
 
   @@map("visits")
+}
+
+enum EventType {
+  STATUS_CHANGE
+  COMMENT
+  PENDENCY_CREATED
+  DOCUMENT_ATTACHED
+  SYSTEM_LOG
+}
+
+model TimelineEvent {
+  id         String    @id @default(uuid())
+  proposalId String
+  userId     String
+  eventType  EventType
+  content    Json?    
+  createdAt  DateTime  @default(now())
+
+  proposal   Proposal  @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id])
+
+  @@map("timeline_events")
 }
