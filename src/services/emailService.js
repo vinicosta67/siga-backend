@@ -13,10 +13,10 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-export async function sendVerificationEmail(to, token) {
-  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+export async function sendVerificationEmail(to, token, originUrl) {
+  const frontendUrl = originUrl || process.env.FRONTEND_URL || "http://localhost:5000";
   const link = `${frontendUrl}/verificar-email/${token}`;
-  
+
   await transporter.sendMail({
     from: '"SIGA" <naoresponda@seusiga.com>',
     to,
@@ -37,10 +37,10 @@ export async function sendVerificationEmail(to, token) {
   });
 }
 
-export async function sendResetPasswordEmail(to, token) {
-  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+export async function sendResetPasswordEmail(to, token, originUrl) {
+  const frontendUrl = originUrl || process.env.FRONTEND_URL || "http://localhost:5000";
   const link = `${frontendUrl}/reset-senha/${token}`;
-  
+
   await transporter.sendMail({
     from: '"SIGA" <naoresponda@seusiga.com>',
     to,

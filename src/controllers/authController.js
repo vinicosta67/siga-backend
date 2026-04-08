@@ -218,7 +218,8 @@ export const register = async (req, res) => {
         });
 
         try {
-            await sendVerificationEmail(email, verificationToken);
+            const requestOrigin = req.headers.origin;
+            await sendVerificationEmail(email, verificationToken, requestOrigin);
         } catch (e) {
             console.error("Falha ao enviar e-mail de verificação:", e);
         }
@@ -613,7 +614,8 @@ export const resendVerification = async (req, res) => {
             }
         });
 
-        await sendVerificationEmail(email, token);
+        const requestOrigin = req.headers.origin;
+        await sendVerificationEmail(email, token, requestOrigin);
 
         res.json({ success: true, message: "Novo código enviado com sucesso para o seu e-mail." });
 
@@ -654,7 +656,8 @@ export const forgotPassword = async (req, res) => {
         });
 
         try {
-            await sendResetPasswordEmail(email, token);
+            const requestOrigin = req.headers.origin;
+            await sendResetPasswordEmail(email, token, requestOrigin);
         } catch (e) {
             console.error("Falha ao enviar e-mail de redefinição de senha:", e);
         }
