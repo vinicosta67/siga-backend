@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import crypto from 'crypto';
-import { sendVerificationEmail } from '../services/emailService.js';
+import { sendVerificationEmail, sendResetPasswordEmail } from '../services/emailService.js';
 
 const registerSchema = z.object({
     name: z.string().min(2, 'O nome deve ter no mínimo 2 caracteres.'),
@@ -620,5 +620,130 @@ export const resendVerification = async (req, res) => {
     } catch (error) {
         console.error("Erro no reenvio de código:", error);
         res.status(500).json({ error: "Erro interno no servidor." });
+    }
+};
+
+export const forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ message: "E-mail é obrigatório." });
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { email: email.toLowerCase().trim() }
+        });
+
+        if (!user) {
+            return res.json({ success: true, message: "Se o e-mail estiver cadastrado, você receberá um link de redefinição." });
+        }
+
+        if (process.env.REQUIRE_EMAIL_VERIFICATION === 'true' && !user.emailVerified) {
+            return res.status(400).json({ message: "Verifique seu e-mail antes de redefinir a senha." });
+        }
+
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiry = new Date(Date.now() + 60 * 60 * 1000);
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                resetPasswordToken: token,
+                resetPasswordExpiry: expiry
+            }
+        });
+
+        try {
+            await sendResetPasswordEmail(email, token);
+        } catch (e) {
+            console.error("Falha ao enviar e-mail de redefinição de senha:", e);
+        }
+
+        res.json({ success: true, message: "Se o e-mail estiver cadastrado, você receberá um link de redefinição." });
+
+    } catch (error) {
+        console.error("Erro em forgotPassword:", error);
+        res.status(500).json({ message: "Erro interno no servidor." });
+    }
+};
+
+export const resetPassword = async (req, res) => {
+    try {
+        const { token, password } = req.body;
+
+        if (!token || !password) {
+            return res.status(400).json({ message: "Token e nova senha são obrigatórios." });
+        }
+
+        if (password.length < 8) {
+            return res.status(400).json({ message: "A senha deve ter pelo menos 8 caracteres." });
+        }
+
+        const hasUpperCase = /[A-Z]/.test(password);
+        const hasLowerCase = /[a-z]/.test(password);
+        const hasNumber = /\d/.test(password);
+        const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+        if (!hasUpperCase || !hasLowerCase || !hasNumber || !hasSpecial) {
+            return res.status(400).json({ message: "A senha deve conter letras maiúsculas, minúsculas, números e caracteres especiais." });
+        }
+
+        const user = await prisma.user.findFirst({
+            where: { resetPasswordToken: token }
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: "Token inválido ou expirado." });
+        }
+
+        if (user.resetPasswordExpiry && user.resetPasswordExpiry < new Date()) {
+           await prisma.user.update({
+               where: { id: user.id },
+               data: { resetPasswordToken: null, resetPasswordExpiry: null }
+           });
+           return res.status(400).json({ message: "Token expirado. Solicite um novo link." });
+        }
+
+        const passwordMatchesCurrent = await bcrypt.compare(password, user.password);
+        if (passwordMatchesCurrent) {
+            return res.status(400).json({ message: "A nova senha deve ser diferente da atual." });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                password: hashedPassword,
+                resetPasswordToken: null,
+                resetPasswordExpiry: null
+            }
+        });
+
+        res.json({ success: true, message: "Senha alterada com sucesso. Faça login com a nova senha." });
+
+    } catch (error) {
+        console.error("Erro em resetPassword:", error);
+        res.status(500).json({ message: "Erro interno no servidor." });
+    }
+};
+
+export const verifyResetToken = async (req, res) => {
+    try {
+        const { token } = req.params;
+        const user = await prisma.user.findFirst({
+            where: { resetPasswordToken: token }
+        });
+
+        if (!user || (user.resetPasswordExpiry && user.resetPasswordExpiry < new Date())) {
+            return res.status(400).json({ valid: false });
+        }
+
+        res.json({ valid: true });
+
+    } catch (error) {
+        console.error("Erro em verifyResetToken:", error);
+        res.status(500).json({ valid: false, message: "Erro interno no servidor." });
     }
 };

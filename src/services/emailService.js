@@ -36,3 +36,28 @@ export async function sendVerificationEmail(to, token) {
     `,
   });
 }
+
+export async function sendResetPasswordEmail(to, token) {
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  const link = `${frontendUrl}/reset-senha/${token}`;
+  
+  await transporter.sendMail({
+    from: '"SIGA" <naoresponda@seusiga.com>',
+    to,
+    subject: "Redefinição de senha - SIGA",
+    html: `
+      <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+          <h2 style="color: #2e7d32;">Redefinição de Senha</h2>
+          <p>Você solicitou a redefinição de senha no SIGA.</p>
+          <p>Clique no botão abaixo para criar uma nova senha (válido por 1 hora):</p>
+          <br/>
+          <a href="${link}" style="display: inline-block; padding: 10px 20px; background-color: #2e7d32; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">Redefinir Minha Senha</a>
+          <br/><br/>
+          <p style="font-size: 14px; color: #555;">Se o botão não funcionar, você também pode acessar o link diretamente:</p>
+          <a href="${link}" style="font-size: 14px; color: #2e7d32; word-break: break-all;">${link}</a>
+          <br/><br/>
+          <p style="font-size: 12px; color: #999;"><em>Se não foi você que solicitou, ignore este e-mail. Sua senha continuará segura.</em></p>
+      </div>
+    `,
+  });
+}
