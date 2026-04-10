@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: siga-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Desenvolvimento
+      POSTGRES_DB: siga_bd
+    ports:
+      - "5433:5433"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  siga-backend:
+    build: .
+    container_name: siga-backend
+    environment:
+      DATABASE_URL: postgresql://postgres:Desenvolvimento@postgres:5433/siga_bd?schema=public
+      PRISMA_CLIENT_ENGINE_TYPE: library
+      AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING}
+      AZURE_JWT_STRING: ${AZURE_JWT_STRING}
+      JWT_SECRET: ${JWT_SECRET}
+      XCURVE_API_URL: ${XCURVE_API_URL}
+      AGRONAVIS_API_URL: ${AGRONAVIS_API_URL}
+      REQUIRE_EMAIL_VERIFICATION: "false"
+      FRONTEND_URL: http://localhost:5000
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+    ports:
+      - "5005:5005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
