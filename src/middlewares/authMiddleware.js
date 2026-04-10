@@ -43,3 +43,14 @@ export const requireAdmin = (req, res, next) => {
     }
     next();
 };
+
+export const requireEmployee = (req, res, next) => {
+    if (!req.user || !req.user.permissions) {
+        return res.status(401).json({ message: "Não autorizado" });
+    }
+    const isEmployee = req.user.permissions.some(p => [1001, 1002, 1005].includes(p.id));
+    if (!isEmployee) {
+        return res.status(403).json({ message: "Acesso restrito a funcionários (Analistas, Gerentes, Admins)" });
+    }
+    next();
+};

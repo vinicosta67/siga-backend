@@ -31,6 +31,8 @@ model User {
   analysedProposals Proposal[] @relation("analyst_proposals")
   visits      Visit[]
   timelineEvents TimelineEvent[]
+  signatures  Signature[]
+  auditLogs   AuditLog[]
 
   @@map("users")
 }
@@ -175,6 +177,18 @@ model Proposal {
   totalArea      Float?
   productiveArea Float?
 
+  // Sistema de amortização e índice de correção
+  amortizationSystem String? @default("PRICE")
+  correctionIndex    String? @default("PRE_FIXADO")
+
+  // Resultados da simulação
+  totalPaid          Decimal? @db.Decimal(15, 2)
+  valueOfFirstInstallment Decimal? @db.Decimal(15, 2)
+  totalInterest      Decimal? @db.Decimal(15, 2)
+
+  // CPF/CNPJ do proponente — usado para vincular propostas a clientes
+  documentNumber     String?
+
   userId     String
   user       User        @relation(fields: [userId], references: [id])
   analystId  String?
@@ -182,6 +196,7 @@ model Proposal {
   documents  Document[]
   guarantees Guarantee[]
   timelineEvents TimelineEvent[]
+  signatures Signature[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -196,9 +211,11 @@ model Document {
   originalName String
   description  String?
   status       String  @default("AGUARDANDO_VALIDACAO")
+  signatureStatus String @default("draft") @db.VarChar(20)
 
   proposalId String
   proposal   Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  signatures Signature[]
   createdAt  DateTime @default(now())
 
   @@map("documents")
@@ -263,4 +280,39 @@ model TimelineEvent {
   user       User      @relation(fields: [userId], references: [id])
 
   @@map("timeline_events")
+}
+
+model Signature {
+  id             Int       @id @default(autoincrement())
+  documentId     String
+  proposalId     String
+  userId         String?
+  role           String    @db.VarChar(50)
+  status         String    @default("pending") @db.VarChar(20)
+  signedAt       DateTime? @db.Timestamptz
+  ipAddress      String?   @db.VarChar(45)
+  signatureHash  String?   @db.VarChar(64)
+  order          Int       @default(1)
+  createdAt      DateTime  @default(now()) @db.Timestamptz
+
+  document       Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  proposal       Proposal  @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  user           User?     @relation(fields: [userId], references: [id])
+
+  @@map("signatures")
+}
+
+model AuditLog {
+  id             Int       @id @default(autoincrement())
+  userId         String
+  action         String    @db.VarChar(50)
+  entityType     String    @db.VarChar(50)
+  entityId       String
+  details        Json?
+  ipAddress      String?   @db.VarChar(45)
+  createdAt      DateTime  @default(now()) @db.Timestamptz
+
+  user           User      @relation(fields: [userId], references: [id])
+
+  @@map("audit_log")
 }

@@ -171,3 +171,38 @@ export const updateUserRole = async (req, res) => {
         res.status(500).json({ success: false, message: "Erro interno no servidor." });
     }
 };
+
+export const updateUserBasicInfo = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, email, phone, zip, state, city, neighborhood, address, pfType } = req.body;
+
+        const isEmployee = req.user.permissions?.some(p => [1001, 1002, 1005].includes(p.id));
+        if (req.user.id !== id && !isEmployee) {
+            return res.status(403).json({ success: false, message: "Sem autorização para alterar os dados deste usuário." });
+        }
+
+        const user = await prisma.user.findUnique({ where: { id } });
+        if (!user) return res.status(404).json({ success: false, message: "Usuário não encontrado." });
+
+        const updatedUser = await prisma.user.update({
+             where: { id },
+             data: {
+                  ...(name && { name }),
+                  ...(email && { email }),
+                  ...(pfType && { pfType })
+             },
+             select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  pfType: true
+             }
+        });
+
+        res.json({ success: true, message: "Dados básicos atualizados com sucesso", user: updatedUser });
+    } catch(err) {
+        console.error("Erro atualizando dados básicos", err);
+        res.status(500).json({ success: false, message: "Erro interno no servidor." });
+    }
+};

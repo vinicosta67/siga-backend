@@ -10,12 +10,15 @@ import {
     getTimelineEvents,
     createTimelineEvent,
     getProposalsStats,
-    reassignProposalOwner
+    reassignProposalOwner,
+    getProposalSignatures,
+    simulateProposal
 } from '../controllers/proposalController.js';
 
 const router = express.Router();
 
 router.post('/', protect, createProposal);
+router.post('/simulate', protect, simulateProposal);
 router.get('/', protect, getProposals);
 router.get('/stats', protect, getProposalsStats);
 router.get('/:proposalId', protect, getProposalById);
@@ -26,5 +29,8 @@ router.post('/:proposalId/documents', protect, uploadBuffer.single('documentFile
 // Rotas de Timeline
 router.get('/:proposalId/timeline', protect, getTimelineEvents);
 router.post('/:proposalId/timeline', protect, createTimelineEvent);
+
+// Rotas de Árvore de Assinatura Completa
+router.get('/:proposalId/signatures', protect, getProposalSignatures);
 
 export default router;
